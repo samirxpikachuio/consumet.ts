@@ -1,10 +1,32 @@
 //extractor for https://animekai.to
 
+// The code for this is now fetched from outside consumet:
+// https://raw.githubusercontent.com/amarullz/kaicodex/refs/heads/main/generated/kai_codex.js
+// as this repository auto-updates the extraction keys when they change.
+// If something breaks in the future, blame this part.
+
 import { ISource, IVideo, VideoExtractor } from '../models';
+import { AxiosAdapter } from 'axios';
+import { ProxyConfig } from '../models/types';
+
+interface KaiCodex {
+  rc4: (key: string, str: string) => string;
+  safeBtoa: (s: string) => string;
+  safeAtob: (s: string) => string;
+  reverseString: (s: string) => string;
+  replaceChars: (s: string, f: string, r: string) => string;
+  enc: (n: string) => string;
+  dec: (n: string) => string;
+  decMega: (n: string) => string;
+}
 
 export class MegaUp extends VideoExtractor {
   protected serverName: string = 'MegaUp';
   protected sources: IVideo[] = [];
+  private KAICODEX!: KaiCodex;
+  private kaicodexReady: Promise<void>;
+
+  /* Old decrypting functions in case the new ones break
 
   #reverseIt = (n: string) => {
     return n.split('').reverse().join('');
@@ -45,54 +67,50 @@ export class MegaUp extends VideoExtractor {
       .replace(/_/g, '/');
     return atob(n);
   };
+  
+  */
+
+  constructor(protected proxyConfig?: ProxyConfig, protected adapter?: AxiosAdapter) {
+    super(proxyConfig, adapter);
+    this.kaicodexReady = this.loadKAICODEX();
+  }
+
+  private async loadKAICODEX(): Promise<void> {
+    const extraction_code =
+      'https://raw.githubusercontent.com/amarullz/kaicodex/refs/heads/main/generated/kai_codex.js';
+
+    const response = await fetch(extraction_code);
+    const originalCode = await response.text();
+
+    const wrappedCode = `
+      ${originalCode}
+      return KAICODEX;
+    `;
+
+    const fn = new Function(wrappedCode);
+    this.KAICODEX = fn();
+  }
 
   GenerateToken = (n: string) => {
-    n = encodeURIComponent(n);
-
-    n = this.#base64UrlEncode(this.#transform('gEUzYavPrGpj', this.#reverseIt(n)));
-
-    n = this.#substitute(n, 'U8nv0tEFGTb', 'bnGvE80UtTF');
-    n = this.#substitute(n, '9ysoRqBZHV', 'oqsZyVHBR9');
-    n = this.#reverseIt(this.#base64UrlEncode(this.#transform('CSk63F7PwBHJKa', n)));
-    n = this.#substitute(n, 'cKj9BMN15LsdH', 'NL5cdKs1jB9MH');
-    return this.#base64UrlEncode(
-      this.#reverseIt(this.#base64UrlEncode(this.#transform('T2zEp1WHL9CsSk7', n)))
-    );
+    return this.KAICODEX.enc(n);
   };
+
   DecodeIframeData = (n: string) => {
-    n = this.#base64UrlDecode(this.#reverseIt(this.#base64UrlDecode(n)));
-    n = this.#transform('T2zEp1WHL9CsSk7', n);
-    n = this.#reverseIt(this.#substitute(n, 'NL5cdKs1jB9MH', 'cKj9BMN15LsdH'));
-    n = this.#transform('CSk63F7PwBHJKa', this.#base64UrlDecode(n));
-    n = this.#substitute(n, 'oqsZyVHBR9', '9ysoRqBZHV');
-    n = this.#base64UrlDecode(this.#substitute(n, 'bnGvE80UtTF', 'U8nv0tEFGTb'));
-    n = this.#reverseIt(this.#transform('gEUzYavPrGpj', n));
-    return decodeURIComponent(n);
+    return this.KAICODEX.dec(n);
   };
 
   Decode = (n: string) => {
-    n = this.#base64UrlDecode(this.#base64UrlDecode(n));
-    n = this.#reverseIt(this.#transform('E438hS1W9oRmB', n));
-    n = this.#reverseIt(this.#substitute(n, 'D5qdzkGANMQZEi', 'Q5diEGMADkZzNq'));
-    n = this.#base64UrlDecode(
-      this.#substitute(
-        this.#transform('NZcfoMD7JpIrgQE', this.#base64UrlDecode(n)),
-        'kTr0pjKzBqZV',
-        'kZpjzTV0KqBr'
-      )
-    );
-    n = this.#reverseIt(
-      this.#substitute(this.#transform('Gay7bxj5B81TJFM', n), 'zcUxoJTi3fgyS', 'oSgyJUfizcTx3')
-    );
-    return decodeURIComponent(n);
+    return this.KAICODEX.decMega(n);
   };
 
   override extract = async (videoUrl: URL): Promise<ISource> => {
     try {
+      await this.kaicodexReady;
+
       const url = videoUrl.href.replace(/\/(e|e2)\//, '/media/');
       const res = await this.client.get(url);
 
-      const decrypted = JSON.parse(this.Decode(res.data.result).replace(/\\/g, ''));
+      const decrypted = JSON.parse(this.KAICODEX.decMega(res.data.result).replace(/\\/g, ''));
       const data: ISource = {
         sources: decrypted.sources.map((s: { file: string }) => ({
           url: s.file,
@@ -100,7 +118,7 @@ export class MegaUp extends VideoExtractor {
         })),
         subtitles: decrypted.tracks.map((t: { kind: any; file: any }) => ({
           kind: t.kind,
-          src: t.file,
+          url: t.file,
         })),
         download: decrypted.download,
       };

@@ -12,6 +12,7 @@
     "test": "jest",
     "test:anime": "jest ./test/anime",
     "test:anime:anix": "jest ./test/anime/anix.test.ts",
+    "test:anime:zoro": "jest ./test/anime/zoro.test.ts",
     "test:books": "jest ./test/books/libgen.test.ts",
     "test:comics": "jest ./test/comics",
     "test:movies": "jest ./test/movies",
@@ -95,5 +96,6 @@
     "example": "examples",
     "test": "test",
     "lib": "src"
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
